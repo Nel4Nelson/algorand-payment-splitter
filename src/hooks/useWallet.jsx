@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { PeraWalletConnect } from '@perawallet/connect';
 import algosdk from 'algosdk';
 import { ALGORAND_CONFIG } from '../config/algorand';
@@ -18,18 +18,27 @@ export const WalletProvider = ({ children }) => {
   const [peraWallet, setPeraWallet] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const algodClient = new algosdk.Algodv2(
+  const algodClient = useMemo(() => new algosdk.Algodv2(
     ALGORAND_CONFIG.ALGOD_TOKEN,
     ALGORAND_CONFIG.ALGOD_SERVER,
     ALGORAND_CONFIG.ALGOD_PORT
-  );
+  ), []);
+
+  const updateBalance = useCallback(async (address) => {
+    try {
+      const info = await algodClient.accountInformation(address).do();
+      setBalance((info.amount / 1000000).toFixed(2));
+    } catch (error) {
+      console.error('Balance fetch error:', error);
+    }
+  }, [algodClient]);
 
   useEffect(() => {
     const initPera = async () => {
       try {
         const pera = new PeraWalletConnect();
         setPeraWallet(pera);
-        
+
         const accounts = await pera.reconnectSession();
         if (accounts && accounts.length) {
           setWalletAddress(accounts[0]);
@@ -41,16 +50,7 @@ export const WalletProvider = ({ children }) => {
       }
     };
     initPera();
-  }, []);
-
-  const updateBalance = async (address) => {
-    try {
-      const info = await algodClient.accountInformation(address).do();
-      setBalance((info.amount / 1000000).toFixed(2));
-    } catch (error) {
-      console.error('Balance fetch error:', error);
-    }
-  };
+  }, [updateBalance]);
 
   const connectPeraWallet = async () => {
     try {
